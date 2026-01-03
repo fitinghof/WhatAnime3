@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgresdb
+    environment:
+      POSTGRES_USER: animedb
+      POSTGRES_PASSWORD: anime_db_8173
+      POSTGRES_DB: animedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/backups:/init
+
+volumes:
+  pgdata:

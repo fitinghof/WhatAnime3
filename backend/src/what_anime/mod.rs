@@ -1,0 +1,159 @@
+mod models;
+mod routes;
+mod utility;
+
+use anilist_api::AnilistAPI;
+use anisong_api::AnisongAPI;
+use axum::Router;
+use axum::http::HeaderValue;
+use axum::routing::get;
+use axum::routing::post;
+use database_api::Database;
+use log::info;
+use reqwest::Method;
+use reqwest::Url;
+use reqwest::header::ACCEPT;
+use reqwest::header::AUTHORIZATION;
+use routes::AppState;
+use routes::confirm_anime;
+use routes::report;
+use routes::{callback, login, update};
+use spotify_api::SpotifyAPI;
+use spotify_api::models::ClientID;
+use spotify_api::models::ClientSecret;
+use std::str::FromStr;
+use std::sync::Arc;
+use tokio::time::interval;
+use tower_http::cors::CorsLayer;
+use tower_sessions::MemoryStore;
+use tower_sessions::SessionManagerLayer;
+use tower_sessions::cookie;
+
+use crate::what_anime::routes::get_moderator;
+use crate::what_anime::routes::get_user;
+use crate::what_anime::routes::make_bindrequest;
+use crate::what_anime::routes::update_bind_request;
+
+pub struct WhatAnime<D, S, A>
+where
+    D: Database + Send + Sync + 'static,
+    S: SpotifyAPI + Send + Sync + 'static,
+    A: AnisongAPI + Send + Sync + 'static,
+{
+    app_state: Arc<AppState<D, S, A>>,
+}
+
+#[cfg(debug_assertions)]
+const FRONTEND_PORT: u16 = 5500; // Debug mode port
+#[cfg(debug_assertions)]
+const BACKEND_PORT: u16 = 8080; // Debug mode port
+
+#[cfg(not(debug_assertions))]
+const FRONTEND_PORT: u16 = 5173; // Release mode port
+#[cfg(not(debug_assertions))]
+const BACKEND_PORT: u16 = 8000; // Release mode port
+
+#[cfg(not(debug_assertions))]
+const FRONTEND_URL: &str = "whatanime.sibbeeegold.dev";
+#[cfg(not(debug_assertions))]
+const BACKEND_URL: &str = "whatanime.sibbeeegold.dev";
+#[cfg(debug_assertions)]
+const FRONTEND_URL: &str = "development.sibbeeegold.dev";
+#[cfg(debug_assertions)]
+const BACKEND_URL: &str = "development.sibbeeegold.dev";
+
+impl<D, S, A> WhatAnime<D, S, A>
+where
+    D: Database + Send + Sync + 'static,
+    S: SpotifyAPI + Send + Sync + 'static,
+    A: AnisongAPI + Send + Sync + 'static,
+{
+    pub fn new(database: D, spotify_api: S, anisong_api: A) -> Self {
+        let client_id =
+            ClientID(std::env::var("client_id").expect("Environment variable client_id not set"));
+        let client_secret = ClientSecret(
+            std::env::var("client_secret").expect("Environment variable client_secret not set"),
+        );
+
+        Self {
+            app_state: Arc::new(AppState {
+                database,
+                spotify_api,
+                _anisong_api: anisong_api,
+                client_id,
+                client_secret,
+                redirect_uri: Url::from_str(&format!("https://{}/api/callback", BACKEND_URL))
+                    .expect("redirect must be valid str"),
+            }),
+        }
+    }
+
+    pub async fn run(&self) {
+        let session_store = MemoryStore::default();
+        let session_layer = SessionManagerLayer::new(session_store)
+            .with_secure(true)
+            .with_same_site(cookie::SameSite::None)
+            .with_always_save(true)
+            .with_domain(BACKEND_URL)
+            .with_http_only(true);
+
+        //.with_expiry(Expiry::OnInactivity(Duration::seconds(10)));
+
+        let app_state_new = self.app_state.clone();
+        tokio::task::spawn(async move {
+            let interval_duration = tokio::time::Duration::from_secs(60 * 60); // 1 hour
+            let mut interval = interval(interval_duration);
+            let mut counter = 0;
+            let anilist = AnilistAPI::new();
+            loop {
+                counter += 1;
+                if counter == 12 {
+                    counter = 0;
+                    let fetches = utility::update_current_season(
+                        &app_state_new.database,
+                        &app_state_new._anisong_api,
+                        &anilist,
+                    )
+                    .await;
+                    info!("Fetched {} from anisong and updated data", fetches);
+                }
+                interval.tick().await;
+                info!("Sent Heartbeat");
+            }
+        });
+
+        // migrate_database(&shared_state.database).await;
+
+        let allowed_origins = [
+            format!("http://localhost:{}", FRONTEND_PORT)
+                .parse::<HeaderValue>()
+                .unwrap(),
+            format!("{}", FRONTEND_URL).parse::<HeaderValue>().unwrap(),
+        ];
+
+        let app = Router::new()
+            .route("/api/update", get(update))
+            .route("/api/login", get(login))
+            .route("/api/callback", get(callback))
+            .route("/api/confirm_anime", post(confirm_anime))
+            .route("/api/report", post(report))
+            .route("/api/get_moderator", get(get_moderator))
+            .route("/api/make_bind_request", post(make_bindrequest))
+            .route("/api/update_bind_request", get(update_bind_request))
+            .route("/api/get_user", get(get_user))
+            .layer(session_layer)
+            .layer(
+                CorsLayer::new()
+                    .allow_origin(allowed_origins)
+                    .allow_credentials(true)
+                    .allow_methods([Method::GET, Method::POST])
+                    .allow_headers([AUTHORIZATION, ACCEPT]),
+            )
+            .with_state(self.app_state.clone());
+
+        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", BACKEND_PORT))
+            .await
+            .unwrap();
+        axum::serve(listener, app).await.unwrap()
+    }
+}
