@@ -1,19 +1,23 @@
 # Build stage
 FROM node:20-slim AS builder
 
-WORKDIR /app
+# ensure the desired directory exists and switch to it
+RUN mkdir -p /whatanime/frontend
+WORKDIR /whatanime/frontend
 
-COPY package.json package-lock.json ./
+# copy the full source tree, then install dependencies
+COPY . /whatanime/frontend
 RUN npm ci
 
-COPY . .
 RUN npm run build
 
-# Runtime stage: distroless
-FROM gcr.io/distroless/nodejs20
+# Runtime stage: use a full Node image so we can run `npm start`
+FROM node:20-slim
 
-WORKDIR /app
-COPY --from=builder /app ./
+WORKDIR /whatanime/frontend
+# copy everything from the builder (includes node_modules and .next)
+COPY --from=builder /whatanime/frontend /whatanime/frontend
 
-EXPOSE 3000
-CMD ["server.js"]
+EXPOSE 5173
+# use the same start script that's defined in package.json
+CMD ["npm","run","start"]

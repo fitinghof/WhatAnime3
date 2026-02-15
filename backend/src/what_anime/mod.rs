@@ -51,7 +51,7 @@ const BACKEND_PORT: u16 = 8080; // Debug mode port
 #[cfg(not(debug_assertions))]
 const FRONTEND_PORT: u16 = 5173; // Release mode port
 #[cfg(not(debug_assertions))]
-const BACKEND_PORT: u16 = 8000; // Release mode port
+const BACKEND_PORT: u16 = 8005; // Release mode port
 
 #[cfg(not(debug_assertions))]
 const FRONTEND_URL: &str = "whatanime.sibbeeegold.dev";

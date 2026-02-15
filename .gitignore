@@ -4,3 +4,4 @@ target/
 *.env
 !/.env
 /database/
+animedb_dev

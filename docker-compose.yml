@@ -1,16 +1,43 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:17
     container_name: postgresdb
+    env_file:
+      - dev.env
     environment:
-      POSTGRES_USER: animedb
-      POSTGRES_PASSWORD: anime_db_8173
-      POSTGRES_DB: animedb
-    ports:
-      - "5432:5432"
+      - POSTGRES_HOST_AUTH_METHOD=trust
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - ./database/postgress/data:/var/lib/postgresql/data
       - ./database/backups:/init
 
-volumes:
-  pgdata:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: whatanime-backend
+    env_file:
+      - dev.env
+    working_dir: /whatanime/backend
+    volumes:
+      # mount the entire repo at /whatanime so both services share the tree
+      - ./:/whatanime:ro
+      # environment files if needed inside container
+      - ./dev.env:/whatanime/dev.env:ro
+      - ./.env:/whatanime/.env:ro
+    ports:
+      - "8005:8005"
+    depends_on:
+      - postgres
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: whatanime-frontend
+    working_dir: /whatanime/frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./.env:/whatanime/.env:ro

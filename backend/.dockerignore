@@ -1,0 +1,7 @@
+# ignore build artifacts and IDE files
+target/
+**/target/
+.git
+.gitignore
+Dockerfile
+*.rs.bk
