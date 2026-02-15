@@ -2,6 +2,9 @@ services:
   postgres:
     image: postgres:17
     container_name: postgresdb
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
     env_file:
       - dev.env
     environment:
@@ -15,6 +18,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: whatanime-backend
+    restart: unless-stopped
     env_file:
       - dev.env
     working_dir: /whatanime/backend
@@ -34,6 +38,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: whatanime-frontend
+    restart: unless-stopped
     working_dir: /whatanime/frontend
     ports:
       - "5173:5173"
