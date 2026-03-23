@@ -1,9 +1,14 @@
 import type { NextConfig } from "next";
-const path = require('path');
-require('dotenv').config({path: path.resolve(__dirname, '../.env')});
 
 const nextConfig: NextConfig = {
-    allowedDevOrigins: [process.env.DEV_FRONTEND ?? "", "localhost", process.env.RELEASE_FRONTEND ?? ""]
+    async rewrites() {
+        return [
+        {
+            source: '/api/:path*',
+            destination: 'http://whatanime-backend:8005/api/:path*',
+        },
+        ];
+    },
 };
 
 export default nextConfig;

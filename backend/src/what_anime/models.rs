@@ -1,4 +1,4 @@
-use database_api::models::{BindFetch, DBAnisong, Report, ReportFetch};
+use database_api::models::{BindFetch, DBAnisong, ReportFetch};
 use database_api::regex::process_possible_japanese;
 use serde::{Deserialize, Serialize};
 use spotify_api::models::TrackObject;

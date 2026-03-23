@@ -46,8 +46,9 @@ impl AnilistAPI {
         let mut all_media: Vec<Media> = Vec::new();
         let mut page = 1;
         let per_page = 50;
-
+        let mut ticker = tokio::time::interval(tokio::time::Duration::from_millis(1500));
         loop {
+            ticker.tick().await;
             let json_body = json!({
                 "query": Self::QUERY_STRING,
                 "variables": {

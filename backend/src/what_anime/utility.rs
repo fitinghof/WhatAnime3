@@ -6,7 +6,7 @@ use chrono::Datelike;
 use database_api::{Database, models::DBAnisong};
 use fuzzywuzzy;
 use kakasi;
-use log::error;
+use log::{error, info};
 use spotify_api::models::SimplifiedArtist;
 
 use database_api::regex::{
@@ -172,6 +172,81 @@ pub fn select_best_by_song_title(anisongs: Vec<DBAnisong>, song_title: &str) -> 
     }
 }
 
+pub async fn initialize_database<D, A>(db: &D, anisong: &A, anilist: &AnilistAPI) -> u64
+where
+    D: Database + 'static + Send + Sync,
+    A: AnisongAPI + 'static + Send + Sync,
+{
+    let now = chrono::Local::now();
+    let year = now.year();
+    let month = now.month();
+    let season_now = month / 4;
+
+    let mut year_idx = 1924;
+    let mut season_idx = 0;
+
+    let mut fetched_anime_amount = 0;
+
+    let mut ticker = tokio::time::interval(tokio::time::Duration::from_millis(3000));
+    loop {
+        ticker.tick().await;
+
+        let season =
+            ReleaseSeason::try_from(season_idx).expect("I shouldn't mess up logic this bad");
+
+        let release = Release {
+            season: season,
+            year: year_idx,
+        };
+        info!("Processing {}", release);
+        let anisongs = match anisong.get_anime_season(release).await {
+            Ok(a) => a,
+            Err(e) => {
+                error!("Failed anisong fetch! Error: {:?}", e);
+                continue;
+            }
+        };
+        let ids: HashSet<what_anime_shared::AnilistAnimeID> = anisongs
+            .iter()
+            .filter_map(|a| a.anime.linked_ids.anilist)
+            .collect();
+
+        let mut media: Vec<anilist_api::Media> = Vec::with_capacity(ids.len());
+        let ids: Vec<_> = ids.into_iter().collect();
+        for chunk in ids.chunks(50) {
+            let mut new = match anilist.fetch_many(chunk.to_vec()).await {
+                Ok(m) => m,
+                Err(e) => match e {
+                    what_anime_shared::error::Error::ReqwestError(e) => {
+                        if e.is_timeout() {
+                            for _ in 0..4 {
+                                ticker.tick().await;
+                            }
+                        }
+                        error!("Got error from anilist_api, Error {:?}", e);
+                        vec![]
+                    }
+                },
+            };
+            media.append(&mut new);
+            ticker.tick().await;
+        }
+
+        let numof = anisongs.len();
+        db.add_from_anisongs(anisongs, media).await;
+        fetched_anime_amount += numof as u64;
+
+        season_idx += 1;
+        if season_idx >= 4 {
+            season_idx = 0;
+            year_idx += 1;
+        }
+        if (year_idx == year && season_idx > season_now) || year_idx > year {
+            break;
+        }
+    }
+    fetched_anime_amount
+}
 pub async fn update_current_season<D, A>(db: &D, anisong: &A, anilist: &AnilistAPI) -> u64
 where
     D: Database + 'static + Send + Sync,

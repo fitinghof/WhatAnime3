@@ -20,12 +20,11 @@ use spotify_api::{
     models::{ClientID, ClientSecret, CurrentlyPlaying, TokenResponse},
 };
 use tower_sessions::Session;
-use what_anime_shared::{ImageURL, SongID, SpotifyTrackID, SpotifyUserID};
+use what_anime_shared::{SongID, SpotifyTrackID, SpotifyUserID};
 
-use crate::what_anime::{FRONTEND_URL, models::ModeratorData, utility::select_best};
+use crate::what_anime::{models::ModeratorData, utility::select_best};
 
 use super::{
-    FRONTEND_PORT,
     models::{self, NewSongHit, NewSongMiss, SongInfo, SongUpdate},
     utility::{pair_artists, select_best_by_song_title},
 };
@@ -338,7 +337,7 @@ where
         let _ = session.insert("user", db_user).await;
     }
 
-    return Ok(Redirect::to(&format!("https://{}", FRONTEND_URL)));
+    return Ok(Redirect::to("/"));
 }
 
 #[derive(Deserialize)]

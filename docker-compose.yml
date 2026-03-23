@@ -1,14 +1,11 @@
 services:
-  postgres:
+  postgresdb:
+    user: ${PID}:${GID}
     image: postgres:17
     container_name: postgresdb
     restart: unless-stopped
-    ports:
-      - "5432:5432"
     env_file:
-      - dev.env
-    environment:
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      - .env
     volumes:
       - ./database/postgress/data:/var/lib/postgresql/data
       - ./database/backups:/init
@@ -20,18 +17,9 @@ services:
     container_name: whatanime-backend
     restart: unless-stopped
     env_file:
-      - dev.env
-    working_dir: /whatanime/backend
-    volumes:
-      # mount the entire repo at /whatanime so both services share the tree
-      - ./:/whatanime:ro
-      # environment files if needed inside container
-      - ./dev.env:/whatanime/dev.env:ro
-      - ./.env:/whatanime/.env:ro
-    ports:
-      - "8005:8005"
+      - .env
     depends_on:
-      - postgres
+      - postgresdb
 
   frontend:
     build:
@@ -39,10 +27,7 @@ services:
       dockerfile: Dockerfile
     container_name: whatanime-frontend
     restart: unless-stopped
-    working_dir: /whatanime/frontend
     ports:
-      - "5173:5173"
+      - 5173:5173
     depends_on:
       - backend
-    volumes:
-      - ./.env:/whatanime/.env:ro

@@ -16,7 +16,6 @@ async fn main() {
         .target(env_logger::Target::Stdout)
         .init();
 
-    dotenvy::from_path("../dev.env").expect("Environment load must succed");
     let database = DatabaseR::new(4).await;
     let anisong = AnisongAPIR::new();
     let spotify: SpotifyAPIR<20> = SpotifyAPIR::new();

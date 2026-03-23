@@ -369,6 +369,7 @@ pub enum AnimeType {
     OVA,
     ONA,
     Special,
+    #[serde(other)]
     Unknown,
 }
 
