@@ -6,6 +6,7 @@ The site also contains simple moderation tools if you want more precise bind con
 ## Setup
 
 - First create a spotify developer app, this is free and can be done at https://developer.spotify.com/
+- Clone repo
 - Then make a new .env containing the variables from the example.env
 - fill in the information asked for in the .env
 - run 'docker compose build' from WhatAnime root
